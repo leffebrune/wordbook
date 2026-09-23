@@ -34,6 +34,18 @@ button { width: 100%; border: none; border-radius: 14px; min-height: 58px; backg
 button:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 2px 0 #255345; }
 button:disabled { opacity: .65; cursor: progress; }
 footer { text-align: center; color: #869386; font-size: 13px; margin-top: 18px; }
+.settings-bar { display: flex; justify-content: flex-end; margin-bottom: 14px; }
+.settings-button { width: auto; min-height: 44px; padding: 8px 12px; font-size: 14px; color: #496555; background: #e9e8dc; box-shadow: none; }
+button:focus-visible { outline: 3px solid #3a7964; outline-offset: 4px; }
+.settings-dialog { width: min(440px, calc(100% - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; border: 1px solid #ded5bd; border-radius: 20px; padding: 24px; background: #fffef8; color: #243029; box-shadow: 0 16px 60px #24302933; }
+.settings-dialog::backdrop { background: #24302980; }
+.settings-dialog h2 { margin: 0 0 22px; }
+.settings-dialog label { display: block; font-weight: 700; margin-bottom: 10px; }
+.settings-dialog p { font-size: 14px; line-height: 1.6; }
+.settings-actions { display: flex; gap: 12px; margin-top: 24px; }
+.settings-actions button { min-height: 48px; font-size: 16px; }
+.settings-actions .secondary { background: #e9e8dc; color: #496555; box-shadow: 0 4px 0 #d7d7c8; }
+.delete-key { margin-top: 18px; min-height: 44px; background: transparent; color: #8c4d37; box-shadow: none; font-size: 14px; }
 @media (max-width: 580px) {
   .app { padding: 26px 16px 70px; }
   .heading { gap: 14px; }

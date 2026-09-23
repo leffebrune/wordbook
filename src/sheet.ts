@@ -68,7 +68,7 @@ export async function parseSheet(csv: string): Promise<WordSheet> {
 export function sheetUrl(): string {
   const { sheetId, sheetGid } = config;
   if (!/^[\w-]+$/.test(sheetId) || !/^\d+$/.test(sheetGid)) {
-    throw new SheetError('시트 ID와 gid를 config.local.ts에 입력해 주세요.');
+    throw new SheetError('src/config.ts의 시트 ID와 gid를 확인해 주세요.');
   }
   return `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?gid=${sheetGid}&tqx=out:csv&headers=0`;
 }

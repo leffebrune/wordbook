@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { grade, GradingError, validateResults, type GradeItem } from './grading';
 
-vi.mock('./config', () => ({ config: { openRouterApiKey: 'test-only-key' } }));
 afterEach(() => vi.unstubAllGlobals());
 
 const items: GradeItem[] = [{
@@ -30,13 +29,27 @@ describe('grading response validation', () => {
       json: async () => ({ choices: [{ message: { content: JSON.stringify({ results: [result] }) } }] })
     });
     vi.stubGlobal('fetch', fetchMock);
-    expect(await grade(items, 'openai/example')).toEqual([result]);
+    expect(await grade(items, 'openai/example', 'test-only-key')).toEqual([result]);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, options] = fetchMock.mock.calls[0];
     expect(url).toBe('https://openrouter.ai/api/v1/chat/completions');
+    expect(options.headers.Authorization).toBe('Bearer test-only-key');
+    expect(options.body).not.toContain('test-only-key');
     const request = JSON.parse(options.body);
     expect(request.model).toBe('openai/example');
     expect(request.messages[1].content).toContain('가저가다');
     expect(request.provider.require_parameters).toBe(true);
+  });
+
+  it('does not make a request without a device key', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(grade(items, 'openai/example', ' ')).rejects.toMatchObject({ kind: 'auth' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([401, 403])('identifies an invalid key for HTTP %s', async status => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status }));
+    await expect(grade(items, 'openai/example', 'invalid-test-key')).rejects.toMatchObject({ kind: 'auth' });
   });
 });
