@@ -63,7 +63,7 @@ vite.config.ts            Pages 경로, manifest, Workbox 선캐시 설정
 .github/workflows/pages.yml  테스트·빌드·Pages 배포
 ```
 
-화면 오른쪽 위 설정 버튼은 비밀번호 입력란과 저장·취소·키 삭제가 있는 대화상자를 연다. 키는 `wordbook.openrouter-api-key.v1`로 localStorage에 저장한다. 새로고침·재실행 후 복원하며 기기/브라우저/출처별로 독립적이다. 취소·Esc로 닫으면 변경하지 않는다. 빈 값 저장 또는 삭제 버튼은 키만 지우며 답안은 보존한다. 저장소 쓰기 실패 시 성공으로 표시하지 않고 설정 창에 오류를 보여 준다. 키가 없으면 채점 요청 전에 설정 창을 연다. HTTP 401/403은 키 확인 안내를 표시한다. 채점 중에는 설정을 변경하지 않는다.
+화면 오른쪽 위 설정 버튼은 비밀번호 입력란과 저장·취소·키 삭제가 있는 대화상자를 연다. 키는 `wordbook.openrouter-api-key.v1`로 localStorage에 저장한다. 새로고침·재실행 후 복원하며 기기/브라우저/출처별로 독립적이다. 취소·Esc로 닫으면 변경하지 않는다. 빈 값 저장 또는 삭제 버튼은 키만 지우며 답안은 보존한다. 저장소 쓰기 실패 시 성공으로 표시하지 않고 설정 창에 오류를 보여 준다. 키가 없으면 채점 요청 전에 설정 창을 연다. HTTP 401은 키 확인, 403은 권한·정책 차단 안내를 표시한다. 채점 중에는 설정을 변경하지 않는다.
 
 API 키를 소스, 환경변수, GitHub Secrets, 빌드 파일, 구글 시트에 넣지 않는다. 이전 `config.local.ts`는 더 이상 import하지 않으며 예시 파일도 제거한다. 키는 채점할 때 OpenRouter의 Authorization 헤더에만 넣는다. localStorage는 암호화 저장소가 아니며 같은 출처 스크립트나 기기 접근자가 읽을 수 있다. 전용 키와 낮은 사용액 한도를 사용한다. 사이트 데이터 삭제 시 키와 답안이 지워지며 다른 기기로 동기화하지 않는다. 예전에 키를 넣어 공개한 빌드가 있다면 해당 키를 교체한다.
 
@@ -73,7 +73,7 @@ OpenRouter로 직접 `fetch('https://openrouter.ai/api/v1/chat/completions', ...
 
 클릭 때 최신 시트를 가져와 정규화한 단어·focus 행의 해시를 현재 화면 목록의 해시와 비교한다. **E1 모델은 해시에서 제외한다.** 단어/focus 변경이면 `단어 목록이 바뀌었어요. 새로고침 후 다시 채점해 주세요.`를 표시하고 답을 보존한다. E1만 변경했으면 곧바로 그 모델을 사용한다. 시트 fetch 실패면 LLM을 호출하지 않고 `단어를 확인하지 못했어요. 연결을 확인하고 다시 눌러 주세요.`를 표시한다.
 
-OpenRouter 한 번의 비스트리밍 요청에 현재 답이 있는 최대 30개를 넣는다. 모델에는 각 행의 단어, focus, 아이 답과 안정적인 ID를 전달한다. `response_format: { type: 'json_schema', json_schema: { name: 'word_feedback', strict: true, schema: ... } }`, `provider: { require_parameters: true }`를 요청한다. 응답의 `choices[0].message.content`를 JSON으로 파싱한다. 구조화 출력을 지원하지 않는 모델은 오류를 보여 주며 **다른 모델로 자동 전환하지 않는다**. 제공 엔드포인트별 지원이 다를 수 있다. [OpenRouter 구조화 출력](https://openrouter.ai/docs/guides/features/structured-outputs).
+OpenRouter 한 번의 비스트리밍 요청에 현재 답이 있는 최대 30개를 넣는다. 모델에는 각 행의 단어, focus, 아이 답과 안정적인 ID를 전달한다. `response_format: { type: 'json_schema', json_schema: { name: 'word_feedback', strict: true, schema: ... } }`, `provider: { require_parameters: true }`를 요청한다. temperature는 지정하지 않는다. GPT-6 Luna 등 해당 옵션을 지원하지 않는 모델이 라우팅에서 제외되는 것을 방지한다. 응답의 `choices[0].message.content`를 JSON으로 파싱한다. 구조화 출력을 지원하지 않는 모델은 오류를 보여 주며 **다른 모델로 자동 전환하지 않는다**. 제공 엔드포인트별 지원이 다를 수 있다. [OpenRouter 구조화 출력](https://openrouter.ai/docs/guides/features/structured-outputs).
 
 결과 스키마는 다음을 각 제출 ID당 정확히 하나 요구한다:
 
@@ -91,7 +91,7 @@ OpenRouter 한 번의 비스트리밍 요청에 현재 답이 있는 최대 30�
 }
 ```
 
-앱은 JSON 파싱 후 제출 ID 누락·중복·추가, 결과 수, 네 가지 허용 verdict, 문자열 길이(코멘트 160자, 예문·번역 각 120자)를 검사한다. 실패하면 결과 전체를 버리고 `채점이 잘 안 됐어요. 다시 눌러 주세요.`를 표시한다. OpenRouter 오류·20초 타임아웃에도 입력을 보존한다. API 인증 오류는 설정 창에서 키를 확인하도록 안내한다. 모델 ID 오류·크레딧 부족·구조화 출력 미지원은 `채점 모델을 사용할 수 없어요. 부모에게 알려 주세요.`로 구별한다. 로그에 키·답안 전문을 출력하지 않는다.
+앱은 JSON 파싱 후 제출 ID 누락·중복·추가, 결과 수, 네 가지 허용 verdict, 문자열 길이(코멘트 160자, 예문·번역 각 120자)를 검사한다. 실패하면 결과 전체를 버리고 `채점이 잘 안 됐어요. 다시 눌러 주세요.`를 표시한다. OpenRouter 오류·20초 타임아웃에도 입력을 보존한다. 인증(401), 잔액/키 한도(402), 권한·정책 차단(403), 요청 옵션(400/422), 모델 경로(404), 호출 제한(429), 서비스 장애(500/502/503), 타임아웃을 구분하고 오류 코드와 모델 ID를 표시한다. HTTP 200 응답의 error 객체도 확인한다. 자동 재시도나 모델 변경은 하지 않는다. 로그에 키·답안 전문을 출력하지 않는다.
 
 | 상태 | 판정 | 화면 문구 |
 | --- | --- | --- |
