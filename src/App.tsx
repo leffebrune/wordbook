@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { loadApiKey } from './settings';
 import { SettingsDialog } from './SettingsDialog';
-import { grade, GradingError, type GradeResult } from './grading';
+import { grade, GradingError, gradingErrorMessage, type GradeResult } from './grading';
 import { loadSheet, modelIsValid, SheetError, type WordSheet } from './sheet';
 
 const DRAFTS_KEY = 'wordbook.drafts.v1';
@@ -131,11 +131,7 @@ export function App() {
       setResults(Object.fromEntries(grades.map(result => [result.id, result])));
     } catch (error) {
       if (error instanceof GradingError) {
-        setMessage(error.kind === 'auth'
-          ? 'API 키를 확인해 주세요. 오른쪽 위 설정에서 변경할 수 있어요.'
-          : error.kind === 'model'
-          ? '채점 모델을 사용할 수 없어요. 부모에게 알려 주세요.'
-          : '채점이 잘 안 됐어요. 다시 눌러 주세요.');
+        setMessage(gradingErrorMessage(error));
       } else {
         setMessage('단어를 확인하지 못했어요. 연결을 확인하고 다시 눌러 주세요.');
       }
