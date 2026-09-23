@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { hasModelKey, hasSheetConfig } from './config';
+import { loadApiKey } from './settings';
+import { SettingsDialog } from './SettingsDialog';
 import { grade, GradingError, type GradeResult } from './grading';
 import { loadSheet, modelIsValid, SheetError, type WordSheet } from './sheet';
 
@@ -52,14 +53,11 @@ export function App() {
   const [loading, setLoading] = useState(true);
   const [offline, setOffline] = useState(false);
   const [message, setMessage] = useState('');
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsNotice, setSettingsNotice] = useState('');
 
   useEffect(() => {
     let active = true;
-    if (!hasSheetConfig()) {
-      setMessage('시트 ID와 gid를 config.local.ts에 입력해 주세요.');
-      setLoading(false);
-      return;
-    }
     loadSheet().then(next => {
       if (!active) return;
       setSheet(next);
@@ -110,8 +108,10 @@ export function App() {
       setMessage('뜻을 하나 이상 적어 봐!');
       return;
     }
-    if (!hasModelKey()) {
-      setMessage('OpenRouter 키를 config.local.ts에 입력해 주세요.');
+    const apiKey = loadApiKey();
+    if (!apiKey) {
+      setMessage('설정에서 OpenRouter API 키를 입력해 주세요.');
+      setSettingsOpen(true);
       return;
     }
 
@@ -127,11 +127,13 @@ export function App() {
         setMessage('시트의 E1 모델 설정을 확인해 주세요.');
         return;
       }
-      const grades = await grade(answers, current.model);
+      const grades = await grade(answers, current.model, apiKey);
       setResults(Object.fromEntries(grades.map(result => [result.id, result])));
     } catch (error) {
       if (error instanceof GradingError) {
-        setMessage(error.kind === 'model'
+        setMessage(error.kind === 'auth'
+          ? 'API 키를 확인해 주세요. 오른쪽 위 설정에서 변경할 수 있어요.'
+          : error.kind === 'model'
           ? '채점 모델을 사용할 수 없어요. 부모에게 알려 주세요.'
           : '채점이 잘 안 됐어요. 다시 눌러 주세요.');
       } else {
@@ -144,6 +146,18 @@ export function App() {
 
   return (
     <main className="app">
+      <div className="settings-bar">
+        <button type="button" className="settings-button" aria-label="설정" aria-haspopup="dialog"
+          disabled={busy} onClick={() => { setSettingsNotice(''); setSettingsOpen(true); }}>
+          <span aria-hidden="true">⚙</span> 설정
+        </button>
+      </div>
+      {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} onSaved={removed => {
+        setSettingsOpen(false);
+        setSettingsNotice(removed ? '이 기기에 저장된 API 키를 삭제했어요.' : '이 기기에 API 키를 저장했어요.');
+        setMessage('');
+      }} />}
+      {settingsNotice && <p className="notice" role="status">{settingsNotice}</p>}
       <header className="heading">
         <div className="mark" aria-hidden="true">a<span>·</span>z</div>
         <div>

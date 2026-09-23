@@ -1,21 +1,5 @@
-export interface AppConfig {
-  sheetId: string;
-  sheetGid: string;
-  openRouterApiKey: string;
-}
-
-// 파일이 아직 없어도 빌드·화면 확인이 가능하다. 실제 값은 Git에서 제외한 파일에 둔다.
-const modules = import.meta.glob<{ default: AppConfig }>('./config.local.ts', { eager: true });
-export const config: AppConfig = modules['./config.local.ts']?.default ?? {
-  sheetId: '',
-  sheetGid: '',
-  openRouterApiKey: ''
-};
-
-export function hasSheetConfig(): boolean {
-  return Boolean(config.sheetId && config.sheetGid !== '');
-}
-
-export function hasModelKey(): boolean {
-  return Boolean(config.openRouterApiKey);
-}
+// 공개 시트 식별자만 번들에 포함한다. API 키는 기기의 설정 창에서 입력한다.
+export const config = {
+  sheetId: '17PQOTPHT-rSYyGKFyyibfdkRXl9zAbkmagAi5-nSesQ',
+  sheetGid: '0'
+} as const;

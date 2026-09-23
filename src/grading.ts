@@ -1,4 +1,3 @@
-import { config } from './config';
 import type { Word } from './sheet';
 
 export const verdicts = ['correct', 'close', 'incorrect', 'uncertain'] as const;
@@ -18,7 +17,7 @@ export interface GradeItem {
 }
 
 export class GradingError extends Error {
-  constructor(readonly kind: 'model' | 'network' | 'format') {
+  constructor(readonly kind: 'auth' | 'model' | 'network' | 'format') {
     super(kind);
   }
 }
@@ -67,8 +66,10 @@ export function validateResults(value: unknown, items: GradeItem[]): GradeResult
   return results as GradeResult[];
 }
 
-export async function grade(items: GradeItem[], model: string): Promise<GradeResult[]> {
-  if (!config.openRouterApiKey || items.length < 1 || items.length > 30) throw new GradingError('model');
+export async function grade(items: GradeItem[], model: string, apiKey: string): Promise<GradeResult[]> {
+  const key = apiKey.trim();
+  if (!key) throw new GradingError('auth');
+  if (items.length < 1 || items.length > 30) throw new GradingError('model');
   const body = {
     model,
     stream: false,
@@ -96,11 +97,12 @@ export async function grade(items: GradeItem[], model: string): Promise<GradeRes
   try {
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${config.openRouterApiKey}`, 'Content-Type': 'application/json' },
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(20_000)
     });
-    if (!response.ok) throw new GradingError([400, 401, 402, 404, 422, 429].includes(response.status) ? 'model' : 'network');
+    if (response.status === 401 || response.status === 403) throw new GradingError('auth');
+    if (!response.ok) throw new GradingError([400, 402, 404, 422, 429].includes(response.status) ? 'model' : 'network');
     const data: unknown = await response.json();
     const content = (data as { choices?: Array<{ message?: { content?: unknown } }> }).choices?.[0]?.message?.content;
     if (typeof content !== 'string') throw new GradingError('format');
