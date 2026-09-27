@@ -26,3 +26,21 @@ describe('sheet parsing', () => {
     await expect(parseSheet('word,focus,,model,openai/example\n42cat,')).rejects.toBeInstanceOf(SheetError);
   });
 });
+
+
+describe('optional speech settings', () => {
+  it('reads D2/E2 and D3/E3 without treating settings-only rows as words', async () => {
+    const sheet = await parseSheet('word,focus,,model,openai/grader\ntake,,,tts_model,openai/gpt-4o-mini-tts-2025-12-15\n,,,tts_voice,alloy');
+    expect(sheet.ttsModel).toBe('openai/gpt-4o-mini-tts-2025-12-15');
+    expect(sheet.ttsVoice).toBe('alloy');
+    expect(sheet.words.map(word => word.text)).toEqual(['take']);
+  });
+  it('accepts old sheets and does not invalidate answers for TTS setting changes', async () => {
+    const old = await parseSheet('word,focus,,model,openai/grader\ntake');
+    const added = await parseSheet('word,focus,,model,openai/grader\ntake,,,tts_model,invalid\n,,,tts_voice,alloy');
+    expect(old.ttsModel).toBe('');
+    expect(old.ttsVoice).toBe('');
+    expect(added.revision).toBe(old.revision);
+    expect(added.words).toEqual(old.words);
+  });
+});
