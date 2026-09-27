@@ -57,3 +57,39 @@ describe('speech API', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('Gemini 3.8 TTS request and response', () => {
+  const gemini = { model: 'google/gemini-3.8-flash-tts', voice: 'Zephyr' };
+  it.each(['google/gemini-3.8-flash-tts', 'google/gemini-3.8-flash-lite-tts'])('requests PCM and separate speech metadata for %s', model => {
+    const request = speechRequest('Can I take this?', { ...gemini, model });
+    expect(request).toMatchObject({ model, voice: 'Zephyr', input: 'Can I take this?', response_format: 'pcm' });
+    expect(request).toHaveProperty('provider.options.google-ai-studio.speech_metadata.style');
+    expect(request).not.toHaveProperty('provider.options.openai');
+  });
+  it.each(['audio/pcm', 'audio/L16;codec=pcm;rate=24000', 'application/octet-stream'])('converts %s to playable WAV', async contentType => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(new Uint8Array([0, 0, 255, 127]), { headers: { 'content-type': contentType } }));
+    vi.stubGlobal('fetch', fetchMock);
+    const audio = await synthesizeSpeech('Hello!', gemini, 'key', signal());
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).response_format).toBe('pcm');
+    expect(audio.type).toBe('audio/wav');
+    expect(audio.size).toBe(48);
+    expect(new TextDecoder().decode((await audio.arrayBuffer()).slice(0, 4))).toBe('RIFF');
+  });
+  it('preserves WAV responses instead of interpreting their header as samples', async () => {
+    const { pcmToWav } = await import('./speechAudio');
+    const wav = pcmToWav(new Uint8Array([0, 0, 255, 127]).buffer);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(wav, { headers: { 'content-type': 'audio/wav' } })));
+    const result = await synthesizeSpeech('Hello!', gemini, 'key', signal());
+    expect(await result.arrayBuffer()).toEqual(await wav.arrayBuffer());
+  });
+  it('shows model and requested format for rejected requests without blaming sheet cells', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('private provider detail', { status: 400 })));
+    const error = await synthesizeSpeech('Hello!', gemini, 'key', signal()).catch(error => error);
+    const message = speechErrorMessage(error);
+    expect(message).toContain('오류 400');
+    expect(message).toContain(gemini.model);
+    expect(message).toContain('pcm');
+    expect(message).not.toContain('E2');
+    expect(message).not.toContain('private provider detail');
+  });
+});
