@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSpeech } from './useSpeech';
 import { loadApiKey } from './settings';
 import { SettingsDialog } from './SettingsDialog';
 import { grade, GradingError, gradingErrorMessage, type GradeResult } from './grading';
@@ -34,7 +35,7 @@ function cachedSheet(): WordSheet | null {
     if (value.words.length > 30 || !value.words.every(word =>
       typeof word?.id === 'string' && typeof word.text === 'string' && typeof word.focus === 'string'
     )) return null;
-    return { words: value.words, revision: value.revision, model: '', truncated: Boolean(value.truncated) };
+    return { words: value.words, revision: value.revision, model: '', ttsModel: '', ttsVoice: '', truncated: Boolean(value.truncated) };
   } catch {
     return null;
   }
@@ -46,6 +47,7 @@ function pruneDrafts(old: Drafts, sheet: WordSheet): Drafts {
 }
 
 export function App() {
+  const speech = useSpeech();
   const [sheet, setSheet] = useState<WordSheet | null>(null);
   const [drafts, setDrafts] = useState<Drafts>(loadDrafts);
   const [results, setResults] = useState<Record<string, GradeResult>>({});
@@ -89,6 +91,7 @@ export function App() {
   }, []);
 
   function changeAnswer(id: string, answer: string) {
+    speech.stopIf(id);
     const next = { ...drafts, [id]: answer.slice(0, 100) };
     setDrafts(next);
     localStorage.setItem(DRAFTS_KEY, JSON.stringify(next));
@@ -115,6 +118,7 @@ export function App() {
       return;
     }
 
+    speech.stop();
     setBusy(true);
     setMessage('');
     try {
@@ -144,7 +148,7 @@ export function App() {
     <main className="app">
       <div className="settings-bar">
         <button type="button" className="settings-button" aria-label="설정" aria-haspopup="dialog"
-          disabled={busy} onClick={() => { setSettingsNotice(''); setSettingsOpen(true); }}>
+          disabled={busy} onClick={() => { speech.stop(); setSettingsNotice(''); setSettingsOpen(true); }}>
           <span aria-hidden="true">⚙</span> 설정
         </button>
       </div>
@@ -196,7 +200,23 @@ export function App() {
                     <div className={`feedback feedback-${result.verdict}`}>
                       <strong>{labels[result.verdict]}</strong>
                       <p>{result.comment}</p>
-                      <div className="example"><span>예문</span><p>{result.exampleEn}<br /><small>{result.exampleKo}</small></p></div>
+                      <div className="example">
+                        <span>예문</span>
+                        <div className="example-content">
+                          <p><span lang="en">{result.exampleEn}</span><br /><small>{result.exampleKo}</small></p>
+                          <button type="button" className="speech-button"
+                            disabled={busy || (speech.state.id === word.id && speech.state.phase === 'loading')}
+                            aria-label={`${word.text} 예문 ${speech.state.id === word.id && speech.state.phase === 'playing' ? '멈추기' : '읽기'}`}
+                            aria-busy={speech.state.id === word.id && speech.state.phase === 'loading'}
+                            onClick={() => speech.read(word.id, result.exampleEn)}>
+                            {speech.state.id === word.id && speech.state.phase === 'loading' ? '음성 준비 중…'
+                              : speech.state.id === word.id && speech.state.phase === 'playing' ? '■ 멈추기' : '🔊 읽기'}
+                          </button>
+                          <small className="speech-disclosure">AI 음성</small>
+                          {speech.state.id === word.id && speech.state.message &&
+                            <p className="speech-message" role="status">{speech.state.message}</p>}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </section>
@@ -217,3 +237,4 @@ export function App() {
     </main>
   );
 }
+

@@ -11,6 +11,8 @@ export interface WordSheet {
   words: Word[];
   revision: string;
   model: string;
+  ttsModel: string;
+  ttsVoice: string;
   truncated: boolean;
 }
 
@@ -42,6 +44,9 @@ export async function parseSheet(csv: string): Promise<WordSheet> {
   }
 
   const model = rows[0]?.[4]?.trim() ?? '';
+  // Optional settings must not prevent word loading or grading on older sheets.
+  const ttsModel = rows[1]?.[3]?.trim() === 'tts_model' ? rows[1]?.[4]?.trim() ?? '' : '';
+  const ttsVoice = rows[2]?.[3]?.trim() === 'tts_voice' ? rows[2]?.[4]?.trim() ?? '' : '';
   const seen = new Set<string>();
   const entries: Array<{ text: string; focus: string }> = [];
   for (let index = 1; index < rows.length; index++) {
@@ -60,9 +65,9 @@ export async function parseSheet(csv: string): Promise<WordSheet> {
     ...entry,
     id: await digest(entry.text.toLowerCase())
   })));
-  // 모델만 바뀌었을 때 작성 중인 답안이 무효화되지 않도록 E1은 제외한다.
+  // 채점/TTS 모델과 목소리만 바뀌어도 답안이 유지되도록 A/B열만 해시한다.
   const revision = await digest(JSON.stringify(entries.map(entry => [entry.text.toLowerCase(), entry.focus])));
-  return { words, revision, model, truncated: entries.length > 30 };
+  return { words, revision, model, ttsModel, ttsVoice, truncated: entries.length > 30 };
 }
 
 export function sheetUrl(): string {
