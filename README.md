@@ -20,9 +20,9 @@ sheetGid: '0'
 | D1 | `model` |
 | E1 | 구조화 출력을 지원하는 OpenRouter 모델 ID, 예: `openai/…` |
 | D2 | `tts_model` |
-| E2 | `openai/gpt-4o-mini-tts-2025-12-15` 등 OpenRouter TTS 모델 ID |
+| E2 | `google/gemini-3.8-flash-tts` 또는 `openai/gpt-4o-mini-tts-2025-12-15` 등 TTS 모델 ID |
 | D3 | `tts_voice` |
-| E3 | 위 OpenAI 모델의 경우 `alloy` (모델별 지원 목소리 지정) |
+| E3 | Gemini는 `Zephyr`, 위 OpenAI 모델은 `alloy` (모델별 지원 목소리 지정) |
 | A2 이후 | `take`, `get` 등 단어 |
 | B2 이후 | 선택 설명: `가방을 학교에 가져가는 장면` |
 
@@ -34,14 +34,15 @@ sheetGid: '0'
 
 - 첫 읽기 클릭 때 시트를 다시 읽어 D2/E2와 D3/E3을 확인한다. 정상 설정은 현재 화면에서 재사용하므로 모델·목소리 변경 후에는 새로고침한다. 잘못된 설정이나 모델/목소리 요청 오류는 다음 클릭 때 다시 읽는다.
 - TTS 설정이 없거나 잘못돼도 단어 로드와 채점은 가능하다. 읽기를 눌렀을 때만 설정 안내를 표시한다. D/E열 설정은 A/B열 단어 및 답안 식별자에 영향을 주지 않는다.
-- `POST https://openrouter.ai/api/v1/audio/speech`로 `input=exampleEn`, `model`, `voice`, `response_format=mp3`를 보내고, 반환된 오디오 Blob을 재생한다. 브라우저 내장 TTS로 자동 전환하지 않는다.
-- `openai/gpt-4o-mini-tts` 계열에는 `provider.options.openai.instructions`로 자연스러운 미국 영어, 아이가 듣기 편한 속도, 친근한 말투와 자연스러운 강세·연음을 요청한다. 다른 모델에는 공통 매개변수만 보낸다. 모델마다 지원 목소리·MP3·말투 옵션이 다르므로 E2와 E3을 함께 변경하고 확인한다.
+- `POST https://openrouter.ai/api/v1/audio/speech`로 `input=exampleEn`, `model`, `voice`, `response_format`을 보내고, 반환된 오디오 Blob을 재생한다. Gemini 3.8 Flash/Flash-Lite TTS는 `pcm`, 그 외 모델은 `mp3`로 요청한다. 브라우저 내장 TTS로 자동 전환하지 않는다.
+- `openai/gpt-4o-mini-tts` 계열에는 `provider.options.openai.instructions`로 자연스러운 미국 영어, 아이가 듣기 편한 속도, 친근한 말투와 자연스러운 강세·연음을 요청한다. Gemini 3.8 Flash/Flash-Lite TTS에는 `provider.options.google-ai-studio.speech_metadata.style`로 같은 지시를 별도 전달한다. 그 외 모델에는 공통 매개변수만 보낸다. 모델마다 지원 목소리·오디오 형식·말투 옵션이 다르므로 E2와 E3을 함께 변경하고 확인한다.
+- Gemini의 헤더 없는 16-bit little-endian PCM은 기본 24 kHz·모노 WAV로 포장해 재생한다. 응답에 rate/channels가 있으면 반영하며, 이미 RIFF/WAVE 헤더가 있는 응답은 이중 포장하지 않는다. 압축 변환 없이 원본 샘플을 보존한다.
 - 버튼은 **읽기 → 음성 준비 중 → 멈추기**로 바뀐다. 다른 예문을 선택하면 이전 재생을 중단한다. 답안 수정 시 해당 예문, 재채점·설정 열기·페이지 떠나기 시 현재 재생을 중단한다. 이전 요청이 늦게 완료되어도 자동 재생하지 않는다.
 - 동일 예문·모델·목소리·말투 요청은 중복 전송하지 않는다. 최근 생성 음성 최대 30개를 메모리에 보관해 반복 듣기에 재사용한다. 새로고침하면 캐시는 사라진다. 다른 예문으로 전환해도 이미 시작한 생성은 캐시를 위해 완료되며 비용이 발생할 수 있다.
 - 모바일에서 비동기 생성 후 재생이 차단되면 **읽기를 한 번 더 눌러 주세요**를 표시한다. 재클릭은 준비된 음성을 직접 재생하며 재생성하지 않는다.
-- 생성 시간 제한은 30초다. 실패 시 해당 예문 옆에 오류를 표시하고 수동 재시도만 제공한다. 타임아웃이어도 공급자에서 생성이 진행됐을 수 있다. 음성은 localStorage나 서비스 워커에 저장하지 않는다.
+- 생성 시간 제한은 30초다. API 요청 오류 시 모델·요청 형식·상태 코드를 표시하여 시트 누락과 구분하고 수동 재시도만 제공한다. 타임아웃이어도 공급자에서 생성이 진행됐을 수 있다. 음성은 localStorage나 서비스 워커에 저장하지 않는다.
 
-공식 API: [OpenRouter TTS 문서](https://openrouter.ai/docs/guides/overview/multimodal/tts).
+공식 API: [OpenRouter TTS 문서](https://openrouter.ai/docs/guides/overview/multimodal/tts), [Gemini 음성 형식](https://ai.google.dev/gemini-api/docs/generate-content/speech-generation).
 
 실기기 확인: 시트에 위 설정을 입력하고 Chrome/Samsung Internet 및 설치한 PWA에서 첫 재생·반복 듣기·다른 예문 전환·재생 중 답안 수정을 확인한다. API 키가 있는 실제 기기에서 음성 API의 CORS, 음질과 억양도 확인해야 한다. 자동 테스트는 API 응답 및 재생 객체를 대체하므로 실제 음질을 검증하지 않는다.
 

@@ -1,11 +1,12 @@
 import { modelIsValid } from './sheet';
+import { geminiAudioToWav } from './speechAudio';
 
 export interface SpeechSettings { model: string; voice: string }
 export const speechInstructions = 'Speak in natural American English with a warm, friendly tone for a nine-year-old English learner. Use a comfortable, slightly slower pace with natural sentence stress, connected speech, and question intonation. Do not exaggerate or separate every word. Read only the supplied text, exactly as written.';
 
 type SpeechErrorKind = 'settings' | 'auth' | 'credits' | 'forbidden' | 'request' | 'rate-limit' | 'service' | 'timeout' | 'network' | 'format';
 export class SpeechError extends Error {
-  constructor(readonly kind: SpeechErrorKind, readonly status?: number) { super(kind); }
+  constructor(readonly kind: SpeechErrorKind, readonly status?: number, readonly model?: string, readonly format?: string) { super(kind); }
 }
 
 export function validateSpeechSettings(settings: SpeechSettings): SpeechSettings {
@@ -16,14 +17,21 @@ export function validateSpeechSettings(settings: SpeechSettings): SpeechSettings
   return settings;
 }
 
+function isGemini38Tts(model: string): boolean {
+  return /^google\/gemini-3\.8-(?:flash|flash-lite)-tts$/.test(model);
+}
+
 export function speechRequest(text: string, settings: SpeechSettings) {
   validateSpeechSettings(settings);
   if (!text.trim() || text.length > 120) throw new SpeechError('format');
   return {
-    model: settings.model, input: text, voice: settings.voice, response_format: 'mp3',
-    // Other providers receive only the portable speech parameters.
+    model: settings.model, input: text, voice: settings.voice,
+    response_format: isGemini38Tts(settings.model) ? 'pcm' : 'mp3',
+    // Keep delivery directions separate from the verbatim English example.
     ...(settings.model.startsWith('openai/gpt-4o-mini-tts') ? {
       provider: { options: { openai: { instructions: speechInstructions } } }
+    } : isGemini38Tts(settings.model) ? {
+      provider: { options: { 'google-ai-studio': { speech_metadata: { style: speechInstructions } } } }
     } : {})
   };
 }
@@ -56,21 +64,28 @@ export async function synthesizeSpeech(text: string, settings: SpeechSettings, a
     });
     if (!response.ok) throw apiError(response.status);
     const contentType = response.headers.get('content-type') ?? '';
-    if (!/^audio\/(mpeg|mp3)(?:;|$)/i.test(contentType)) {
-      if (contentType.includes('json')) {
-        const data = await response.json() as { error?: { code?: unknown } };
-        const status = Number(data?.error?.code);
-        if (Number.isInteger(status) && status >= 400 && status <= 599) throw apiError(status);
-      }
+    if (contentType.includes('json')) {
+      const data = await response.json() as { error?: { code?: unknown } };
+      const status = Number(data?.error?.code);
+      if (Number.isInteger(status) && status >= 400 && status <= 599) throw apiError(status);
       throw new SpeechError('format');
     }
-    const audio = await response.blob();
-    if (!audio.size) throw new SpeechError('format');
-    return audio;
+    if (/^audio\/(mpeg|mp3)(?:;|$)/i.test(contentType)) {
+      const audio = await response.blob();
+      if (!audio.size) throw new SpeechError('format');
+      return audio;
+    }
+    if (isGemini38Tts(settings.model) &&
+        /^(?:audio\/(?:pcm|l16|x-pcm|wav|wave|x-wav)|application\/octet-stream)(?:;|$)/i.test(contentType)) {
+      const buffer = await response.arrayBuffer();
+      try { return geminiAudioToWav(buffer, contentType); }
+      catch { throw new SpeechError('format'); }
+    }
+    throw new SpeechError('format');
   } catch (error) {
     if (signal.aborted) throw new DOMException('Cancelled', 'AbortError');
-    if (timedOut) throw new SpeechError('timeout');
-    if (error instanceof SpeechError) throw error;
+    if (timedOut) throw new SpeechError('timeout', undefined, settings.model, body.response_format);
+    if (error instanceof SpeechError) throw new SpeechError(error.kind, error.status, settings.model, body.response_format);
     throw new SpeechError('network');
   } finally {
     clearTimeout(timeout);
@@ -84,14 +99,14 @@ export function speechErrorMessage(error: unknown): string {
     auth: '오른쪽 위 설정에서 OpenRouter API 키를 확인해 주세요.',
     credits: 'OpenRouter 잔액과 API 키의 사용 한도를 확인해 주세요.',
     forbidden: '음성 요청이 차단됐어요. API 키 권한과 정책 설정을 확인해 주세요.',
-    request: '시트 E2의 TTS 모델과 E3의 목소리가 호환되는지 확인해 주세요.',
+    request: '음성 요청이 거부됐어요. 모델·목소리·오디오 형식의 호환성을 확인해 주세요.',
     'rate-limit': '음성 요청이 많아요. 잠시 후 다시 눌러 주세요.',
     service: '음성 서비스가 응답하지 못했어요. 잠시 후 다시 눌러 주세요.',
     timeout: '음성 준비 시간이 초과됐어요. 다시 눌러 주세요.',
     network: '음성을 불러오지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.',
-    format: '재생할 음성을 받지 못했어요. 모델의 MP3 지원을 확인해 주세요.'
+    format: '지원하는 음성 형식을 받지 못했어요. 모델의 오디오 출력 형식을 확인해 주세요.'
   };
-  return error instanceof SpeechError
-    ? messages[error.kind] + (error.status ? ` (오류 ${error.status})` : '')
-    : '음성 설정을 불러오지 못했어요. 연결을 확인하고 다시 눌러 주세요.';
+  if (!(error instanceof SpeechError)) return '음성 설정을 불러오지 못했어요. 연결을 확인하고 다시 눌러 주세요.';
+  const context = [error.status ? `오류 ${error.status}` : '', error.model, error.format].filter(Boolean);
+  return messages[error.kind] + (context.length ? ` (${context.join(' · ')})` : '');
 }
