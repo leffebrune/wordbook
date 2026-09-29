@@ -5,11 +5,11 @@ afterEach(() => vi.unstubAllGlobals());
 
 const items: GradeItem[] = [{
   word: { id: 'id1', text: 'take', focus: '가방을 가져가는 장면' },
-  answer: '가저가다'
+  answer: '가저가다',
+  exercise: { id: 'id1', exampleEn: 'Take your bag to school.', target: 'Take', meaning: '가져가다', exampleKo: '가방을 학교에 가져가.' }
 }];
 const result = {
-  id: 'id1', verdict: 'correct', comment: '뜻을 잘 알았어.',
-  exampleEn: 'I take a bag.', exampleKo: '나는 가방을 가져가.'
+  id: 'id1', verdict: 'correct', comment: '뜻을 잘 알았어.'
 };
 
 describe('grading response validation', () => {
@@ -41,6 +41,9 @@ describe('grading response validation', () => {
     expect(request).not.toHaveProperty('temperature');
     expect(request.response_format.type).toBe('json_schema');
     expect(request.messages[1].content).toContain('가저가다');
+    expect(JSON.parse(request.messages[1].content)[0]).toMatchObject({ exampleEn: items[0].exercise.exampleEn, intendedMeaning: '가져가다', target: 'Take' });
+    expect(request.messages[0].content).toContain('이 문맥에 맞지 않으면');
+    expect(request.response_format.json_schema.schema.properties.results.items.required).not.toContain('exampleEn');
     expect(request.provider.require_parameters).toBe(true);
   });
 

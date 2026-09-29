@@ -39,7 +39,7 @@ export function SettingsDialog({ onClose, onSaved }: Props) {
         <input id="api-key" type="password" value={key} autoFocus autoComplete="off"
           autoCapitalize="none" spellCheck={false} aria-describedby="key-help"
           onChange={event => { setKey(event.target.value); setError(''); }} />
-        <p id="key-help">키는 이 기기의 브라우저에만 저장해요. 채점할 때 OpenRouter로 전송하며, 다른 기기에서는 다시 입력해야 해요.</p>
+        <p id="key-help">키는 이 기기의 브라우저에만 저장해요. 문장 생성·채점·음성 생성 때 OpenRouter로 전송하며, 다른 기기에서는 다시 입력해야 해요.</p>
         {error && <p className="notice" role="alert">{error}</p>}
         <div className="settings-actions">
           <button type="button" className="secondary" onClick={onClose}>취소</button>
